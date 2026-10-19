@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1f2a2e">
+<meta name="description" content="OpenSketch: a free learn-to-draw app and sketching studio. No ads, no paywall, works offline.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>OpenSketch - free drawing studio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <section id="view-learn" class="view active"></section>
+  <section id="view-gallery" class="view"></section>
+
+  <section id="view-studio" class="view">
+    <header id="studio-top">
+      <button id="btnBack" class="ib" aria-label="Back" data-i="back"></button>
+      <button id="docTitle" class="title" aria-label="Rename drawing">Untitled</button>
+      <button id="btnGuide" class="ib hidden" aria-label="Toggle guide" data-i="guide"></button>
+      <button id="btnUndo" class="ib" aria-label="Undo" data-i="undo"></button>
+      <button id="btnRedo" class="ib" aria-label="Redo" data-i="redo"></button>
+      <button id="btnLayers" class="ib" aria-label="Layers" data-i="layers"></button>
+      <button id="btnMenu" class="ib" aria-label="More" data-i="more"></button>
+    </header>
+
+    <div id="viewport">
+      <div id="stage">
+        <div id="paper"></div>
+        <img id="refUnder" class="ref" alt="">
+        <div id="layers"></div>
+        <img id="refOver" class="ref" alt="">
+        <div id="grid"></div>
+        <svg id="guide" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div id="zoomBadge"></div>
+      <button id="btnFit" class="fab" aria-label="Fit to screen" data-i="fit"></button>
+    </div>
+
+    <div id="lessonCard" class="hidden">
+      <div class="lc-head">
+        <span id="lcCount"></span>
+        <button id="lcMin" class="ib sm" aria-label="Collapse" data-i="down"></button>
+      </div>
+      <b id="lcTitle"></b>
+      <p id="lcText"></p>
+      <div class="lc-actions">
+        <button id="lcPrev" class="btn ghost">Back</button>
+        <button id="lcNext" class="btn">Next step</button>
+      </div>
+    </div>
+
+    <div id="optbar">
+      <button id="btnColor" class="colorbtn" aria-label="Colour"><span></span></button>
+      <label class="slider"><small>Size <b id="sizeVal"></b></small><input id="sizeRange" type="range" min="1" max="100" step="1"></label>
+      <label class="slider"><small>Opacity <b id="opVal"></b></small><input id="opRange" type="range" min="5" max="100" step="1"></label>
+    </div>
+    <div id="tools"></div>
+  </section>
+
+  <nav id="tabbar">
+    <button data-tab="learn" class="on"><span data-i="book"></span>Learn</button>
+    <button data-tab="studio"><span data-i="brush"></span>Draw</button>
+    <button data-tab="gallery"><span data-i="gallery"></span>My art</button>
+  </nav>
+</div>
+
+<div id="backdrop"></div>
+<div id="sheet" role="dialog" aria-modal="true">
+  <div id="sheetHead"><b id="sheetTitle"></b><button id="sheetClose" class="ib sm" aria-label="Close" data-i="x"></button></div>
+  <div id="sheetBody"></div>
+</div>
+<div id="toast" role="status"></div>
+<input type="file" id="refInput" accept="image/*" hidden>
+
+<script src="lessons.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

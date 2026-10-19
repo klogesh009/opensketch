@@ -1,0 +1,20 @@
+{
+  "name": "OpenSketch - Free Drawing Studio",
+  "short_name": "OpenSketch",
+  "description": "Learn to draw with guided lessons and sketch freely. No ads, no paywall, works offline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf7f2",
+  "theme_color": "#1f2a2e",
+  "categories": ["education", "entertainment", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New drawing", "short_name": "Draw", "url": "./index.html?new=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}
