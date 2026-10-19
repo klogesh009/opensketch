@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = 'opensketch-v1';
+const CACHE = 'opensketch-v2';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'lessons.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'maskable-512.png'];
 

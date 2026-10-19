@@ -51,6 +51,9 @@
     fit: 'M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5',
     merge: 'M6 4v6a6 6 0 0 0 12 0V4 M12 16v5 M9 18l3 3 3-3',
     edit: 'M4 20l1-4L16 5l3 3L8 19l-4 1z',
+    lock: 'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',
+    unlock: 'M6 11h12v9H6z M8 11V8a4 4 0 0 1 7-2.6',
+    palette: 'M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2s0-2 1.5-2h2a4 4 0 0 0 4-4c0-5-4-10-9-10z M7.5 11h.01 M10 7h.01 M15 7h.01',
   };
   const ic = (n, sz = 22) => `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[n] || ''}"/></svg>`;
   const fillIcons = (root = document) => $$('[data-i]', root).forEach((el) => { el.innerHTML = ic(el.dataset.i); });
@@ -80,7 +83,9 @@
   const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten'];
   const PALETTE = ['#111111', '#333333', '#555555', '#777777', '#999999', '#bbbbbb', '#dddddd', '#ffffff',
     '#e63946', '#f4793b', '#ffd23f', '#a7c957', '#3bb273', '#2a9d8f', '#3a86ff', '#5a4fcf', '#9b5de5', '#f15bb5',
-    '#8d5a3b', '#c68642', '#f2c6a0', '#ffe5d0'];
+    '#8d5a3b', '#c68642', '#f2c6a0', '#ffe5d0',
+    '#ff8fa3', '#ffb5a7', '#ffd6a5', '#fdffb6', '#caffbf', '#9bf6ff', '#a0c4ff', '#bdb2ff', '#ffc6ff',
+    '#7f1d1d', '#b45309', '#166534', '#075985', '#3730a3', '#6b21a8', '#9d174d'];
   const SYMS = [['off', 'Off'], ['mirror', 'Mirror'], ['quad', 'Quad'], ['r6', 'Radial 6'], ['r8', 'Radial 8'], ['kal', 'Kaleidoscope']];
 
   // ---------- state ----------
@@ -147,7 +152,7 @@
   function makeCanvas(w = DOC.w, h = DOC.h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   function newLayer(name) {
     const c = makeCanvas();
-    return { id: uid(), name, canvas: c, ctx: c.getContext('2d'), visible: true, opacity: 1, blend: 'normal' };
+    return { id: uid(), name, canvas: c, ctx: c.getContext('2d'), visible: true, opacity: 1, blend: 'normal', locked: false };
   }
   function syncLayersDOM() {
     layersEl.replaceChildren();
@@ -188,7 +193,7 @@
     const L = newLayer(lesson ? 'Drawing' : 'Layer 1');
     S.layers = [L]; S.cur = L; syncLayersDOM();
     S.history = []; S.redo = []; S.docId = uid(); S.dirty = false; S.sym = 'off';
-    S.lesson = lesson; S.guideOn = true;
+    S.lesson = lesson; S.guideOn = true; S.colouring = false; updateQuickPal();
     S.name = name || (lesson ? LESSONS.find((l) => l.id === lesson.id).title : 'Sketch ' + new Date().toLocaleDateString());
     $('#docTitle').textContent = S.name;
     updateLessonCard(); updateUndoUI(); renderGuide();
@@ -200,11 +205,12 @@
     resetDoc({ w: rec.w, h: rec.h, paper: rec.paper, name: rec.name, lesson: rec.lesson || null });
     S.docId = rec.id; S.layers = [];
     for (const l of rec.layers) {
-      const L = newLayer(l.name); L.visible = l.visible; L.opacity = l.opacity; L.blend = l.blend || 'normal';
+      const L = newLayer(l.name); L.visible = l.visible; L.opacity = l.opacity; L.blend = l.blend || 'normal'; L.locked = !!l.locked;
       await drawBlob(l.blob, L.ctx); S.layers.push(L);
     }
     if (!S.layers.length) S.layers.push(newLayer('Layer 1'));
-    S.cur = S.layers[S.layers.length - 1]; syncLayersDOM(); S.dirty = false;
+    S.cur = [...S.layers].reverse().find((l) => !l.locked) || S.layers[S.layers.length - 1]; syncLayersDOM(); S.dirty = false;
+    S.colouring = S.layers.some((l) => l.locked); updateQuickPal();
     updateLessonCard(); renderGuide();
   }
   async function drawBlob(blob, ctx) {
@@ -219,7 +225,7 @@
     try {
       const th = flatten(true, 240 / DOC.w);
       const layers = await Promise.all(S.layers.map(async (L) => ({
-        name: L.name, visible: L.visible, opacity: L.opacity, blend: L.blend,
+        name: L.name, visible: L.visible, opacity: L.opacity, blend: L.blend, locked: L.locked,
         blob: await new Promise((r) => L.canvas.toBlob(r, 'image/png')),
       })));
       await DB.put({
@@ -349,6 +355,7 @@
     if (T.mode === 'pick') { pickColor(p); return; }
     const L = activeLayer();
     if (!L || !L.visible) { toast('This layer is hidden'); return; }
+    if (L.locked) { toast('This layer is locked. Pick another layer.'); return; }
     if (T.mode === 'fill') { floodFill(p); return; }
     if (S.recents[0] !== S.color) { S.recents = [S.color, ...S.recents.filter((c) => c !== S.color)].slice(0, 10); store.set('recents', S.recents); }
     const useBuf = T.mode === 'shape' || T.buf || (T.mode === 'line' && !T.erase && T.op < 100);
@@ -530,13 +537,19 @@
     const pad = 3; const bx0 = Math.max(0, minX - pad), bx1 = Math.min(W - 1, maxX + pad), by0 = Math.max(0, minY - pad), by1 = Math.min(H - 1, maxY + pad);
     const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
     const core = new ImageData(bw, bh), ring = new ImageData(bw, bh), rgb = hexToRgb(S.color);
-    const inM = (x, y) => x >= 0 && y >= 0 && x < W && y < H && mask[y * W + x];
-    for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
-      const o = ((y - by0) * bw + (x - bx0)) * 4;
-      if (mask[y * W + x]) { core.data[o] = rgb[0]; core.data[o + 1] = rgb[1]; core.data[o + 2] = rgb[2]; core.data[o + 3] = 255; }
-      else if (inM(x - 1, y) || inM(x + 1, y) || inM(x, y - 1) || inM(x, y + 1) || inM(x - 1, y - 1) || inM(x + 1, y + 1) || inM(x - 1, y + 1) || inM(x + 1, y - 1)) {
-        ring.data[o] = rgb[0]; ring.data[o + 1] = rgb[1]; ring.data[o + 2] = rgb[2]; ring.data[o + 3] = 255;
+    const grown = mask.slice();
+    for (let it = 0; it < 2; it++) {
+      const snap = grown.slice();
+      for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+        const i = y * W + x; if (snap[i]) continue;
+        if ((x > 0 && snap[i - 1]) || (x < W - 1 && snap[i + 1]) || (y > 0 && snap[i - W]) || (y < H - 1 && snap[i + W]) ||
+          (x > 0 && y > 0 && snap[i - W - 1]) || (x < W - 1 && y > 0 && snap[i - W + 1]) || (x > 0 && y < H - 1 && snap[i + W - 1]) || (x < W - 1 && y < H - 1 && snap[i + W + 1])) grown[i] = 1;
       }
+    }
+    for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+      const o = ((y - by0) * bw + (x - bx0)) * 4, i = y * W + x;
+      if (mask[i]) { core.data[o] = rgb[0]; core.data[o + 1] = rgb[1]; core.data[o + 2] = rgb[2]; core.data[o + 3] = 255; }
+      else if (grown[i]) { ring.data[o] = rgb[0]; ring.data[o + 1] = rgb[1]; ring.data[o + 2] = rgb[2]; ring.data[o + 3] = 255; }
     }
     const before = L.ctx.getImageData(bx0, by0, bw, bh);
     const cc = makeCanvas(bw, bh); cc.getContext('2d').putImageData(core, 0, 0);
@@ -707,6 +720,7 @@
       const L = S.cur;
       n.innerHTML = `<div class="lrows">${S.layers.slice().reverse().map((l) => `<div class="lrow ${l === L ? 'on' : ''}" data-id="${l.id}">
         <button class="ib sm" data-a="vis" aria-label="Show or hide">${ic(l.visible ? 'eye' : 'eyeoff', 18)}</button>
+        <button class="ib sm" data-a="lock" aria-label="Lock or unlock">${ic(l.locked ? 'lock' : 'unlock', 18)}</button>
         <button class="lname" data-a="sel">${esc(l.name)}</button>
         <select data-a="blend" aria-label="Blend mode">${BLENDS.map((b) => `<option ${b === l.blend ? 'selected' : ''}>${b}</option>`).join('')}</select></div>`).join('')}</div>
         <div class="sec"><label>Layer opacity <b id="lopv">${Math.round(L.opacity * 100)}%</b></label><input type="range" id="lop" min="0" max="100" value="${Math.round(L.opacity * 100)}"></div>
@@ -719,7 +733,7 @@
     render(); openSheet('Layers', n);
     n.addEventListener('click', (e) => {
       const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a; const row = b.closest('.lrow');
-      if (row) { const l = S.layers.find((x) => x.id === row.dataset.id); if (a === 'vis') { l.visible = !l.visible; refreshLayers(); markDirty(); } else if (a === 'sel') S.cur = l; }
+      if (row) { const l = S.layers.find((x) => x.id === row.dataset.id); if (a === 'vis') { l.visible = !l.visible; refreshLayers(); markDirty(); } else if (a === 'lock') { l.locked = !l.locked; markDirty(); } else if (a === 'sel') S.cur = l; }
       else if (a === 'add') addLayerOp(); else if (a === 'dup') dupLayerOp(); else if (a === 'del') deleteLayerOp();
       else if (a === 'up') moveLayerOp(1); else if (a === 'down') moveLayerOp(-1); else if (a === 'merge') mergeDownOp(); else if (a === 'clear') clearLayerOp();
       else if (a === 'rename') { const nm = prompt('Layer name', S.cur.name); if (nm && nm.trim()) { S.cur.name = nm.trim().slice(0, 30); markDirty(); } }
@@ -807,12 +821,59 @@
     const L = currentLesson(); if (!L) return;
     if (S.lesson.step < L.steps.length - 1) { S.lesson.step++; updateLessonCard(); markDirty(); }
     else {
-      const done = new Set(store.get('done', [])); done.add(L.id); store.set('done', [...done]);
-      S.lesson = null; S.guideOn = false; updateLessonCard(); markDirty(); toast('Lesson complete! Nicely done.');
+      finishLesson(L);
     }
   });
   $('#lcMin').addEventListener('click', () => { const c = $('#lessonCard'); c.classList.toggle('min'); $('#lcMin').innerHTML = ic(c.classList.contains('min') ? 'up' : 'down'); requestAnimationFrame(() => { if (V.fitted) fitView(); }); });
   $('#btnGuide').addEventListener('click', () => { S.guideOn = !S.guideOn; renderGuide(); toast(S.guideOn ? 'Guide on' : 'Guide hidden - draw from memory'); });
+
+  function finishLesson(L) {
+    const done = new Set(store.get('done', [])); done.add(L.id); store.set('done', [...done]);
+    S.lesson = null; S.guideOn = false; updateLessonCard(); markDirty();
+    const n = el(`<p style="margin-bottom:12px">Nicely done! You finished <b>${esc(L.title)}</b>.</p><div class="list">
+      ${L.colour ? `<button class="item" data-a="colour">${ic('palette')} Colour this drawing</button>` : ''}
+      <button class="item" data-a="keep">${ic('brush')} Keep drawing</button>
+      <button class="item" data-a="home">${ic('book')} More lessons</button></div>`);
+    openSheet('Lesson complete', n);
+    n.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-a]'); if (!b) return; closeSheet();
+      if (b.dataset.a === 'colour') { await saveDoc(); startColouring({ title: L.title + ' (colour)', inner: L.steps.map((st) => st.svg).join(''), white: false }); }
+      else if (b.dataset.a === 'home') leaveStudio();
+    });
+  }
+
+  // ---------- colouring pages ----------
+  async function renderLines(L, inner, white) {
+    const size = 900;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${size}" height="${size}"><g fill="${white ? '#fff' : 'none'}" stroke="#000" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">${inner}</g></svg>`;
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const c = makeCanvas(size, size), x = c.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#fff'; x.fillRect(0, 0, size, size); x.drawImage(img, 0, 0, size, size);
+    const id = x.getImageData(0, 0, size, size), d = id.data;
+    for (let i = 0; i < d.length; i += 4) { const a = 255 - Math.min(d[i], d[i + 1], d[i + 2]); d[i] = 29; d[i + 1] = 35; d[i + 2] = 39; d[i + 3] = a; }
+    x.putImageData(id, 0, 0); URL.revokeObjectURL(url);
+    L.ctx.drawImage(c, (DOC.w - size) / 2, (DOC.h - size) / 2);
+  }
+  async function startColouring(spec) {
+    resetDoc({ w: 900, h: 1200, paper: '#ffffff', name: spec.title });
+    const colourL = S.cur; colourL.name = 'Colour';
+    const linesL = newLayer('Lines'); linesL.locked = true;
+    S.layers = [colourL, linesL]; S.cur = colourL; syncLayersDOM();
+    try { await renderLines(linesL, spec.inner, spec.white); } catch (e) { toast('Could not load that page'); return; }
+    S.colouring = true; updateQuickPal(); selectTool('fill'); markDirty(); enterStudio();
+    toast('Pick a colour, then tap a shape');
+  }
+  function updateQuickPal() {
+    const q = $('#quickpal'); q.classList.toggle('hidden', !S.colouring); if (!S.colouring) return;
+    const list = [...new Set([...S.recents.slice(0, 6), ...PALETTE.slice(8)])];
+    q.innerHTML = list.map((c) => `<button class="sw${c === S.color ? ' on' : ''}" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
+  }
+  $('#quickpal').addEventListener('click', (e) => {
+    const b = e.target.closest('.sw'); if (!b) return;
+    setColor(b.dataset.c, false); $$('.sw', $('#quickpal')).forEach((x) => x.classList.toggle('on', x === b));
+    if (['pan', 'pick'].includes(TOOLS[S.tool].mode)) selectTool('fill');
+  });
 
   // ---------- streak ----------
   function markStreak() {
@@ -854,6 +915,7 @@
   window.addEventListener('appinstalled', () => { installEvt = null; if (current === 'learn') renderLearn(); });
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
+  const LEVELS = ['Foundations', 'First drawings', 'Animals', 'Nature', 'Food & objects'];
   async function renderLearn() {
     const root = $('#view-learn'), done = new Set(store.get('done', [])), sc = streakCount();
     const prompts = window.DAILY_PROMPTS, d = new Date(), doy = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5), prompt = prompts[doy % prompts.length];
@@ -861,24 +923,28 @@
     const card = (l) => `<button class="lesson" data-lesson="${l.id}">${done.has(l.id) ? `<span class="done">${ic('check', 14)}</span>` : ''}
       <div class="thumb"><svg viewBox="0 0 100 100">${l.steps.map((s) => `<g class="gs">${s.svg}</g>`).join('')}</svg></div>
       <div><b>${esc(l.title)}</b><br><small>${l.steps.length} steps &middot; ${l.time}</small></div></button>`;
-    const group = (lvl) => `<h2>${lvl}</h2><div class="lessons">${LESSONS.filter((l) => l.level === lvl).map(card).join('')}</div>`;
+    const ccard = (c) => `<button class="lesson" data-colour="${c.id}"><div class="thumb cp"><svg viewBox="0 0 100 100"><g>${c.inner}</g></svg></div>
+      <div><b>${esc(c.title)}</b><br><small>Colouring page</small></div></button>`;
+    const group = (lvl) => `<h2>${lvl}</h2><div class="hrow">${LESSONS.filter((l) => l.level === lvl).map(card).join('')}</div>`;
     root.innerHTML = `
-      <div class="hero"><div><h1>OpenSketch</h1><p>Learn to draw. Free, with no ads.</p></div>
+      <div class="hero"><div><h1>OpenSketch</h1><p>${LESSONS.length} guided drawings &middot; ${COLOURING.length} colouring pages. All free.</p></div>
         <div class="streak" title="Days in a row">${ic('flame', 18)}<b>${sc}</b></div></div>
       ${installEvt && !isStandalone() ? `<div class="install"><span>Install OpenSketch on this phone</span><button class="btn" data-act="install">Install</button></div>` : ''}
       <div class="card today"><small>Today's sketch idea</small><div class="big">Draw ${esc(prompt)}</div>
         <div class="row"><button class="btn" data-act="free">Start drawing</button></div></div>
       ${recent ? `<button class="card continue" data-act="open" data-id="${recent.id}"><img alt="" src="${recent.thumb}"><div><b>Continue drawing</b><span>${esc(recent.name)}</span></div></button>` : ''}
-      ${group('Foundations')}${group('First drawings')}
+      <h2>Colouring pages</h2><div class="hrow">${COLOURING.map(ccard).join('')}</div>
+      ${LEVELS.map(group).join('')}
       <h2>Quick tips</h2><div class="tips">
+        <div class="tip">Colouring: pick a colour, then tap inside a shape to fill it. The black lines stay on top.</div>
         <div class="tip">Draw light first, then darken. Layer soft strokes to build shadows.</div>
         <div class="tip">Use the <b>Blend</b> tool to smooth shading, and the <b>Eraser</b> to lift highlights.</div>
-        <div class="tip">Pinch to zoom, drag with two fingers to move, tap with two fingers to undo.</div>
-        <div class="tip">Turn the guide off with the target icon to try a step from memory.</div></div>
+        <div class="tip">Pinch to zoom, drag with two fingers to move, tap with two fingers to undo.</div></div>
       <p class="foot">Everything is free. Your drawings stay on your device.</p>`;
   }
   $('#view-learn').addEventListener('click', async (e) => {
     const l = e.target.closest('[data-lesson]'); if (l) { startLesson(l.dataset.lesson); return; }
+    const cp = e.target.closest('[data-colour]'); if (cp) { const c = COLOURING.find((x) => x.id === cp.dataset.colour); startColouring({ title: c.title, inner: c.inner, white: true }); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     if (a.dataset.act === 'free') startFree();
     else if (a.dataset.act === 'open') { await loadDoc(a.dataset.id); enterStudio(); }

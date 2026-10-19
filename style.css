@@ -151,3 +151,16 @@ input.hue::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;b
   #view-learn,#view-gallery{padding-left:max(16px,calc(50vw - 380px));padding-right:max(16px,calc(50vw - 380px))}
   .lessons{grid-template-columns:repeat(3,1fr)}.ggrid{grid-template-columns:repeat(4,1fr)}
 }
+
+/* colouring + horizontal lesson rows */
+.hrow{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 8px;margin:0 -16px;padding-left:16px;padding-right:16px;scroll-snap-type:x proximity;scrollbar-width:none}
+.hrow::-webkit-scrollbar{display:none}
+.hrow .lesson{flex:0 0 150px;scroll-snap-align:start}
+.cp{background:#fff!important}
+.cp g{fill:#fff;stroke:#2b3439;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+#quickpal{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;background:var(--chrome);border-top:1px solid var(--line);scrollbar-width:none}
+#quickpal::-webkit-scrollbar{display:none}
+#quickpal.hidden{display:none!important}
+#quickpal .sw{flex:none;width:34px;height:34px}
+
+#view-learn>*,#view-gallery>*{flex-shrink:0}
